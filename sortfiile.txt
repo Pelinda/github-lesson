@@ -1,0 +1,6 @@
+ali,3
+pelin,32
+musa,25
+fatoş,42
+ayşe,18
+selin,15

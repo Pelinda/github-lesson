@@ -1,0 +1,2 @@
+/home/train/miniconda3
+/home/train/miniconda3/envs/fastapi

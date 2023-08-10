@@ -1,0 +1,94 @@
+version: '3.3'
+
+services:
+    db:
+        restart: always
+        image: mysql
+        container_name: mlflow_db
+        expose:
+            - "3306"
+        networks:
+            - backend
+        environment:
+            - MYSQL_ROOT_PASSWORD="test"
+            - MYSQL_USER="admin"
+            - MYSQL_PASSWORD="test"
+            - MYSQL_ROOT_HOST="%"
+        volumes:
+            - dbdata:/var/lib/mysql
+            # Directory with *sql files to initialize DB
+            - "${PWD}/sql_scripts:/docker-entrypoint-initdb.d"
+        command: --authentication_policy=mysql_native_password --sql_mode=""
+
+    mlflow:
+        restart: always
+        build: ./mlflow
+        image: mlflow_server
+        container_name: mlflow_server
+        expose:
+            - "5000"
+        networks:
+            - frontend
+            - backend
+        environment:
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+            - S3_MLFLOW_BUCKET=${S3_MLFLOW_BUCKET}
+        command: mlflow server --backend-store-uri mysql+pymysql://mlflow:mlflow@db:3306/mlflow --default-artifact-root s3://${S3_MLFLOW_BUCKET}/mlflow/ --host 0.0.0.0        
+
+    nginx:
+        restart: always
+        build: ./nginx
+        image: mlflow_nginx
+        container_name: mlflow_nginx
+        ports:
+            - "5001:80"
+        networks:
+            - frontend
+        depends_on:
+            - mlflow
+    gitea:
+        image: gitea/gitea:1.16.0
+        container_name: gitea
+        environment:
+         - USER_UID=1000
+         - USER_GID=1000
+         - GITEA__database__DB_TYPE=mysql
+         - GITEA__database__HOST=db:3306
+         - GITEA__database__NAME=gitea
+         - GITEA__database__USER=gitea
+         - GITEA__database__PASSWD=gitea
+        restart: always
+        networks:
+          - frontend
+          - backend
+        volumes:
+         - ./gitea:/data
+         - /etc/timezone:/etc/timezone:ro
+         - /etc/localtime:/etc/localtime:ro
+        ports:
+         - "3000:3000"
+         - "222:22"
+        depends_on:
+         - db
+    jenkins:
+        restart: always
+        image: jenkins/jenkins:jdk11
+        container_name: jenkins
+        ports:
+            - "8080:8080"
+            - "50000:50000"
+        networks:
+            - frontend
+        volumes:
+         - jenkins_home:/var/jenkins_home
+networks:
+    frontend:
+        driver: bridge
+    backend:
+        driver: bridge
+
+volumes:
+    dbdata:
+    jenkins_home:
